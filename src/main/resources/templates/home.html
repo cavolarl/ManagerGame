@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Manager Game</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .nav-links {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .nav-links a {
+            display: inline-block;
+            margin: 0 15px;
+            padding: 10px 20px;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .primary-btn {
+            background-color: #007bff;
+        }
+        .primary-btn:hover {
+            background-color: #0056b3;
+        }
+        .secondary-btn {
+            background-color: #28a745;
+        }
+        .secondary-btn:hover {
+            background-color: #218838;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin: 20px 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to Manager Game</h1>
+        <div class="description">
+            <p>Build your empire, manage your team, and become the ultimate manager!</p>
+            <p>Create an account to start your journey or login to continue your adventure.</p>
+        </div>
+        <div class="nav-links">
+            <a href="/register" class="secondary-btn">Create Account</a>
+            <a href="/login" class="primary-btn">Login</a>
+            <a href="/hello" class="primary-btn">Enter Game</a>
+        </div>
+    </div>
+</body>
+</html>
