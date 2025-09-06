@@ -33,16 +33,16 @@ data class Company(
     
     // One-to-many relationship with Employee
     @OneToMany(mappedBy = "company", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
-    val employees: MutableSet<Employee> = mutableSetOf(),
+    val employees: MutableSet<GameEmployee> = mutableSetOf(),
     
     // One-to-many relationship with Report
     @OneToMany(mappedBy = "company", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
-    val reports: MutableSet<Report> = mutableSetOf()
+    val reports: MutableSet<Contract> = mutableSetOf()
 ) {
     constructor() : this(user = User(), name = "")
     
     // Helper methods
-    fun addEmployee(employee: Employee) {
+    fun addEmployee(employee: GameEmployee) {
         employees.add(employee)
     }
     
