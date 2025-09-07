@@ -47,7 +47,7 @@ data class Contract(
     val stakeholderPoints: Int, // Points toward quarterly score
     
     @Column(nullable = false)
-    val bonusMultiplier: Double = 1.0, // For early completion
+    val bonusMultiplier: Double = 1.0, // Bonus multiplier for early completion, default 1
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

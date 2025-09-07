@@ -2,273 +2,244 @@ package larl.manager.backend.controller
 
 import larl.manager.backend.entity.*
 import larl.manager.backend.service.*
+import larl.manager.backend.dto.request.*
+import larl.manager.backend.dto.response.*
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import jakarta.validation.Valid
 
 @RestController
-@RequestMapping("/api/users")
-@CrossOrigin(origins = ["http://localhost:3000", "http://localhost:8080"])
-class UserController(
-    private val userService: UserService
+@RequestMapping("/api/game")
+@CrossOrigin(origins = ["http://localhost:5173", "http://localhost:8080"])
+class GameController(
+    private val gameOrchestrationService: GameOrchestrationService,
+    private val gameSessionService: GameSessionService,
+    private val contractService: ContractService,
+    private val employeeService: EmployeeService,
+    private val metaProgressionService: MetaProgressionService
 ) {
     
-    @PostMapping("/register")
-    fun registerUser(@RequestBody request: UserRegistrationRequest): ResponseEntity<ApiResponse<UserResponse>> {
+    // ========== GAME SESSION MANAGEMENT ==========
+    
+    @PostMapping("/start")
+    fun startNewGame(@Valid @RequestBody request: StartGameRequest): ResponseEntity<ApiResponse<GameInitializationResponse>> {
         return try {
-            val user = userService.createUser(
-                username = request.username,
-                email = request.email,
-                passwordHash = request.password
+            val result = gameOrchestrationService.initializeNewGame(
+                request.userId, 
+                request.companyName, 
+                request.selectedPerks
             )
-            ResponseEntity.ok(ApiResponse.success(UserResponse.from(user), "User registered successfully"))
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Registration failed"))
+            when (result) {
+                is GameInitializationResult.Success -> {
+                    val response = GameInitializationResponse(
+                        gameSession = GameSessionResponse.from(result.gameSession),
+                        availableEmployees = result.availableEmployees.map { GameEmployeeResponse.from(it) },
+                        availablePerks = metaProgressionService.getAvailablePerks(request.userId)
+                            .map { PerkResponse.from(it, request.selectedPerks.contains(it)) }
+                    )
+                    ResponseEntity.ok(ApiResponse.success(response, "Game started successfully"))
+                }
+                is GameInitializationResult.Failure -> {
+                    ResponseEntity.badRequest().body(ApiResponse.error(result.error))
+                }
+            }
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to start game"))
         }
     }
     
-    @GetMapping("/{id}")
-    fun getUser(@PathVariable id: Long): ResponseEntity<ApiResponse<UserResponse>> {
-        val user = userService.findById(id)
-        return if (user != null) {
-            ResponseEntity.ok(ApiResponse.success(UserResponse.from(user)))
+    @GetMapping("/session/{gameSessionId}")
+    fun getGameSession(@PathVariable gameSessionId: Long): ResponseEntity<ApiResponse<GameSessionResponse>> {
+        val gameSession = gameSessionService.findById(gameSessionId)
+        return if (gameSession != null) {
+            ResponseEntity.ok(ApiResponse.success(GameSessionResponse.from(gameSession)))
         } else {
             ResponseEntity.notFound().build()
         }
     }
-}
-
-@RestController
-@RequestMapping("/api/companies")
-@CrossOrigin(origins = ["http://localhost:3000", "http://localhost:8080"])
-class CompanyController(
-    private val companyService: CompanyService
-) {
     
-    @PostMapping("/create")
-    fun createCompany(@RequestBody request: CreateCompanyRequest): ResponseEntity<ApiResponse<CompanyResponse>> {
+    @GetMapping("/state/{gameSessionId}")
+    fun getGameState(@PathVariable gameSessionId: Long): ResponseEntity<ApiResponse<GameStateResponse>> {
         return try {
-            val company = companyService.createCompany(request.userId, request.companyName)
-            if (company != null) {
-                ResponseEntity.ok(ApiResponse.success(CompanyResponse.from(company), "Company created successfully"))
-            } else {
-                ResponseEntity.badRequest().body(ApiResponse.error("Failed to create company"))
+            val result = gameOrchestrationService.getGameState(gameSessionId)
+            when (result) {
+                is GameStateResult.Success -> {
+                    val response = GameStateResponse(
+                        gameSession = GameSessionResponse.from(result.gameSession),
+                        activeEmployees = result.activeEmployees.map { GameEmployeeResponse.from(it) },
+                        availableContracts = result.availableContracts.map { ContractResponse.from(it) },
+                        activeContracts = result.activeContracts.map { ContractResponse.from(it) }
+                    )
+                    ResponseEntity.ok(ApiResponse.success(response))
+                }
+                is GameStateResult.Failure -> {
+                    ResponseEntity.badRequest().body(ApiResponse.error(result.error))
+                }
             }
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to create company"))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to get game state"))
         }
     }
     
-    @GetMapping("/user/{userId}")
-    fun getCompanyByUser(@PathVariable userId: Long): ResponseEntity<ApiResponse<CompanyResponse>> {
-        val company = companyService.getCompanyByUserId(userId)
-        return if (company != null) {
-            ResponseEntity.ok(ApiResponse.success(CompanyResponse.from(company)))
-        } else {
-            ResponseEntity.notFound().build()
+    // ========== TURN MANAGEMENT ==========
+    
+    @PostMapping("/turn/{gameSessionId}")
+    fun processWeekTurn(@PathVariable gameSessionId: Long): ResponseEntity<ApiResponse<WeekTurnResponse>> {
+        return try {
+            val result = gameOrchestrationService.processWeekTurn(gameSessionId)
+            when (result) {
+                is WeekTurnResult.Success -> {
+                    val response = WeekTurnResponse(
+                        gameSession = GameSessionResponse.from(result.gameSession),
+                        contractResults = result.contractResults.map { ContractResponse.from(it) },
+                        quitEmployees = result.quitEmployees.map { GameEmployeeResponse.from(it) },
+                        completedContracts = result.completedContracts.map { ContractResponse.from(it) }
+                    )
+                    ResponseEntity.ok(ApiResponse.success(response, "Week turn processed successfully"))
+                }
+                is WeekTurnResult.Failure -> {
+                    ResponseEntity.badRequest().body(ApiResponse.error(result.error))
+                }
+            }
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to process week turn"))
         }
     }
-}
-
-@RestController
-@RequestMapping("/api/employees")
-@CrossOrigin(origins = ["http://localhost:3000", "http://localhost:8080"])
-class EmployeeController(
-    private val employeeService: EmployeeService
-) {
     
-    @GetMapping("/available")
-    fun getAvailableEmployees(): ResponseEntity<ApiResponse<List<EmployeeResponse>>> {
-        val employees = employeeService.getAvailableEmployees()
-        return ResponseEntity.ok(ApiResponse.success(employees.map { EmployeeResponse.from(it) }))
+    // ========== CONTRACT MANAGEMENT ==========
+    
+    @GetMapping("/contracts/{gameSessionId}")
+    fun getContracts(@PathVariable gameSessionId: Long): ResponseEntity<ApiResponse<List<ContractResponse>>> {
+        val contracts = contractService.getContractsByGameSession(gameSessionId)
+        return ResponseEntity.ok(ApiResponse.success(contracts.map { ContractResponse.from(it) }))
     }
     
-    @GetMapping("/company/{companyId}")
-    fun getCompanyEmployees(@PathVariable companyId: Long): ResponseEntity<ApiResponse<List<EmployeeResponse>>> {
-        val employees = employeeService.getCompanyEmployees(companyId)
-        return ResponseEntity.ok(ApiResponse.success(employees.map { EmployeeResponse.from(it) }))
+    @GetMapping("/contracts/{gameSessionId}/available")
+    fun getAvailableContracts(@PathVariable gameSessionId: Long): ResponseEntity<ApiResponse<List<ContractResponse>>> {
+        val contracts = contractService.findAvailableContracts(gameSessionId)
+        return ResponseEntity.ok(ApiResponse.success(contracts.map { ContractResponse.from(it) }))
     }
     
-    @PostMapping("/hire")
-    fun hireEmployee(@RequestBody request: HireEmployeeRequest): ResponseEntity<ApiResponse<EmployeeResponse>> {
+    @GetMapping("/contracts/{gameSessionId}/active")
+    fun getActiveContracts(@PathVariable gameSessionId: Long): ResponseEntity<ApiResponse<List<ContractResponse>>> {
+        val contracts = contractService.findActiveContracts(gameSessionId)
+        return ResponseEntity.ok(ApiResponse.success(contracts.map { ContractResponse.from(it) }))
+    }
+    
+    @PostMapping("/contracts/{contractId}/start")
+    fun startContract(@PathVariable contractId: Long): ResponseEntity<ApiResponse<ContractResponse>> {
         return try {
-            val employee = employeeService.hireEmployee(request.companyId, request.employeeId)
-            if (employee != null) {
-                ResponseEntity.ok(ApiResponse.success(EmployeeResponse.from(employee), "Employee hired successfully"))
+            val contract = contractService.startContract(contractId)
+            if (contract != null) {
+                    ResponseEntity.ok(ApiResponse.success(ContractResponse.from(contract), "Contract started"))
             } else {
-                ResponseEntity.badRequest().body(ApiResponse.error("Failed to hire employee"))
+                ResponseEntity.badRequest().body(ApiResponse.error("Failed to start contract or contract not found"))
             }
-        } catch (e: IllegalArgumentException) {
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to start contract"))
+        }
+    }
+    
+    @PostMapping("/contracts/{contractId}/assign")
+    fun assignEmployeeToContract(
+        @PathVariable contractId: Long,
+        @Valid @RequestBody request: AssignEmployeeRequest
+    ): ResponseEntity<ApiResponse<ContractAssignmentResponse>> {
+        return try {
+            val result = contractService.assignEmployeeToContract(
+                contractId, 
+                request.employeeId, 
+                gameSessionService.findById(request.gameSessionId)?.currentWeek ?: 1 // Pass current week
+            )
+            when (result) {
+                is ContractAssignment -> {
+                    ResponseEntity.ok(ApiResponse.success(
+                        ContractAssignmentResponse.from(result), 
+                        "Employee assigned to contract"
+                    ))
+                }
+                else -> {
+                    ResponseEntity.badRequest().body(ApiResponse.error("Unknown assignment result"))
+                }
+            }
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to assign employee"))
+        }
+    }
+    
+    // ========== EMPLOYEE MANAGEMENT ==========
+    
+    @GetMapping("/employees/{gameSessionId}")
+    fun getActiveEmployees(@PathVariable gameSessionId: Long): ResponseEntity<ApiResponse<List<GameEmployeeResponse>>> {
+        val employees = employeeService.getActiveEmployees(gameSessionId)
+        return ResponseEntity.ok(ApiResponse.success(employees.map { GameEmployeeResponse.from(it) }))
+    }
+    
+    @GetMapping("/employees/{gameSessionId}/available")
+    fun getAvailableEmployees(@PathVariable gameSessionId: Long): ResponseEntity<ApiResponse<List<GameEmployeeResponse>>> {
+        val employees = employeeService.getAvailableEmployees(gameSessionId)
+        return ResponseEntity.ok(ApiResponse.success(employees.map { GameEmployeeResponse.from(it) }))
+    }
+    
+    @PostMapping("/employees/{gameSessionId}/generate")
+    fun generateRandomEmployee(@PathVariable gameSessionId: Long): ResponseEntity<ApiResponse<GameEmployeeResponse>> {
+        val gameSession = gameSessionService.findById(gameSessionId)
+            ?: return ResponseEntity.badRequest().body(ApiResponse.error("Game session not found"))
+        
+        val employee = employeeService.generateRandomEmployee(
+            gameSession
+        )
+        
+        return ResponseEntity.ok(ApiResponse.success(GameEmployeeResponse.from(employee), "Random employee generated"))
+    }
+    
+    @PostMapping("/employees/hire")
+    fun hireEmployee(@Valid @RequestBody request: HireEmployeeRequest): ResponseEntity<ApiResponse<GameEmployeeResponse>> {
+        return try {
+            val result = gameOrchestrationService.hireEmployee(request.gameSessionId, createEmployeeFromRequest(request))
+            when (result) {
+                is EmployeeHiringResult.Success -> {
+                    ResponseEntity.ok(ApiResponse.success(
+                        GameEmployeeResponse.from(result.employee), 
+                        "Employee hired successfully"
+                    ))
+                }
+                is EmployeeHiringResult.Failure -> {
+                    ResponseEntity.badRequest().body(ApiResponse.error(result.error))
+                }
+            }
+        } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to hire employee"))
         }
     }
     
-    @PostMapping("/generate")
-    fun generateRandomEmployee(): ResponseEntity<ApiResponse<EmployeeResponse>> {
-        val employee = employeeService.generateRandomEmployee()
-        return ResponseEntity.ok(ApiResponse.success(EmployeeResponse.from(employee), "Random employee generated"))
-    }
-}
-
-@RestController
-@RequestMapping("/api/reports")
-@CrossOrigin(origins = ["http://localhost:3000", "http://localhost:8080"])
-class ReportController(
-    private val reportService: ReportService
-) {
-    
-    @PostMapping("/start")
-    fun startReport(@RequestBody request: StartReportRequest): ResponseEntity<ApiResponse<ReportResponse>> {
+    @PostMapping("/employees/{employeeId}/fire")
+    fun fireEmployee(@PathVariable employeeId: Long): ResponseEntity<ApiResponse<GameEmployeeResponse>> {
         return try {
-            val report = reportService.startReport(request.companyId, request.employeeId)
-            if (report != null) {
-                ResponseEntity.ok(ApiResponse.success(ReportResponse.from(report), "Report started"))
+            val employee = employeeService.fireEmployee(employeeId)
+            if (employee != null) {
+                ResponseEntity.ok(ApiResponse.success(GameEmployeeResponse.from(employee), "Employee fired"))
             } else {
-                ResponseEntity.badRequest().body(ApiResponse.error("Failed to start report"))
+                ResponseEntity.badRequest().body(ApiResponse.error("Failed to fire employee"))
             }
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to start report"))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to fire employee"))
         }
     }
-    
-    @PostMapping("/{reportId}/complete")
-    fun completeReport(@PathVariable reportId: Long): ResponseEntity<ApiResponse<ReportResponse>> {
-        return try {
-            val report = reportService.completeReport(reportId)
-            if (report != null) {
-                ResponseEntity.ok(ApiResponse.success(ReportResponse.from(report), "Report completed"))
-            } else {
-                ResponseEntity.badRequest().body(ApiResponse.error("Failed to complete report"))
-            }
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to complete report"))
-        }
-    }
-    
-    @GetMapping("/company/{companyId}/active")
-    fun getActiveReports(@PathVariable companyId: Long): ResponseEntity<ApiResponse<List<ReportResponse>>> {
-        val reports = reportService.getActiveReports(companyId)
-        return ResponseEntity.ok(ApiResponse.success(reports.map { ReportResponse.from(it) }))
-    }
+
+    private fun createEmployeeFromRequest(request: HireEmployeeRequest): GameEmployee {
+    return GameEmployee().copy(
+        name = request.name,
+        employeeType = EmployeeType.valueOf(request.employeeType.uppercase()),
+        level = request.level,
+        speed = request.speed,
+        accuracy = request.accuracy,
+        salary = request.salary,
+        morale = request.morale,
+        isActive = false
+        // gameSession will be replaced in service layer, no need to set it here
+    )
 }
 
-// Request DTOs
-data class UserRegistrationRequest(
-    val username: String,
-    val email: String,
-    val password: String
-)
 
-data class CreateCompanyRequest(
-    val userId: Long,
-    val companyName: String
-)
-
-data class HireEmployeeRequest(
-    val companyId: Long,
-    val employeeId: Long
-)
-
-data class StartReportRequest(
-    val companyId: Long,
-    val employeeId: Long
-)
-
-// Response DTOs
-data class ApiResponse<T>(
-    val success: Boolean,
-    val data: T? = null,
-    val message: String? = null
-) {
-    companion object {
-        fun <T> success(data: T, message: String? = null) = ApiResponse(true, data, message)
-        fun <T> error(message: String) = ApiResponse<T>(false, null, message)
-    }
-}
-
-data class UserResponse(
-    val id: Long,
-    val username: String,
-    val email: String,
-    val createdAt: String
-) {
-    companion object {
-        fun from(user: User) = UserResponse(
-            id = user.id,
-            username = user.username,
-            email = user.email,
-            createdAt = user.createdAt.toString()
-        )
-    }
-}
-
-data class CompanyResponse(
-    val id: Long,
-    val name: String,
-    val budget: Long,
-    val employeeCount: Int
-) {
-    companion object {
-        fun from(company: Company) = CompanyResponse(
-            id = company.id,
-            name = company.name,
-            budget = company.budget,
-            employeeCount = company.employees.size
-        )
-    }
-}
-
-data class EmployeeResponse(
-    val id: Long,
-    val name: String,
-    val communication: Int,
-    val problemSolving: Int,
-    val creativity: Int,
-    val luck: Int,
-    val teamwork: Int,
-    val salary: Long,
-    val hireCost: Long,
-    val isAvailableForHiring: Boolean,
-    val companyId: Long?
-) {
-    companion object {
-        fun from(employee: Employee) = EmployeeResponse(
-            id = employee.id,
-            name = employee.name,
-            communication = employee.communication,
-            problemSolving = employee.problemSolving,
-            creativity = employee.creativity,
-            luck = employee.luck,
-            teamwork = employee.teamwork,
-            salary = employee.salary,
-            hireCost = employee.hireCost,
-            isAvailableForHiring = employee.isAvailableForHiring,
-            companyId = employee.company?.id
-        )
-    }
-}
-
-data class ReportResponse(
-    val id: Long,
-    val title: String,
-    val employeeName: String,
-    val status: String,
-    val quality: Int,
-    val reward: Long,
-    val timeToComplete: Int,
-    val startedAt: String,
-    val completedAt: String?
-) {
-    companion object {
-        fun from(report: Report) = ReportResponse(
-            id = report.id,
-            title = report.title,
-            employeeName = report.employee.name,
-            status = report.status.name,
-            quality = report.quality,
-            reward = report.reward,
-            timeToComplete = report.timeToComplete,
-            startedAt = report.startedAt.toString(),
-            completedAt = report.completedAt?.toString()
-        )
-    }
 }
