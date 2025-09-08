@@ -13,37 +13,29 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional
 class GameOrchestrationService(
     private val gameSessionRepository: GameSessionRepository,
-    private val userRepository: UserRepository,
     private val contractService: ContractService,
-    private val employeeService: EmployeeService,
-    private val metaProgressionService: MetaProgressionService
+    private val employeeService: EmployeeService
 ) {
     
     /**
      * Initialize a complete new game (new company run) for a user
      */
-    fun initializeNewGame(userId: Long, companyName: String, selectedPerks: Set<CompanyPerk> = emptySet()): GameInitializationResult {
+    fun initializeNewGame(sessionId: String, companyName: String): GameInitializationResult {
         try {
-            val user = userRepository.findById(userId).orElse(null)
-                ?: return GameInitializationResult.failure("User not found")
-            
-            // Check if user already has an active game
-            val existingGame = gameSessionRepository.findActiveGameByUser(userId)
+            // Check if session already has an active game
+            val existingGame = gameSessionRepository.findActiveGameBySession(sessionId)
             if (existingGame.isPresent) {
-                return GameInitializationResult.failure("User already has an active game session")
+                return GameInitializationResult.failure("Session already has an active game")
             }
             
-            // Validate selected perks
-            val validPerks = selectedPerks.filter { user.unlockedPerks.contains(it) }.toMutableSet()
-            
-            // Create new game session (this IS the company for this run)
-            val startingBudget = if (validPerks.contains(CompanyPerk.BUDGET_BOOST)) 55000L else 50000L
-            
+            // Create new game session
             val gameSession = GameSession(
-                user = user,
+                sessionId = sessionId,
                 companyName = companyName,
-                budget = startingBudget,
-                appliedPerks = validPerks
+                budget = 50000L, // Standard starting budget
+                currentQuarter = 1,
+                currentWeek = 1,
+                status = GameStatus.ACTIVE
             )
             
             val savedGame = gameSessionRepository.save(gameSession)
@@ -73,29 +65,20 @@ class GameOrchestrationService(
                 return WeekTurnResult.failure("Game session is not active")
             }
             
-            // 1. Apply weekly morale bonuses from perks
-            val employees = employeeService.getActiveEmployees(gameSessionId)
-            employees.forEach { employee ->
-                val updatedEmployee = employee.applyWeeklyMoraleBonus()
-                if (updatedEmployee != employee) {
-                    employeeService.updateEmployee(updatedEmployee)
-                }
-            }
-            
-            // 2. Process contract progress for current week
+            // Process contract progress for current week
             val activeContracts = contractService.findActiveContracts(gameSessionId)
             val contractResults = activeContracts.map { contract ->
                 contractService.processWeeklyProgress(contract.id, gameSession.currentWeek)
             }
             
-            // 4. Check employee retention (low morale employees might quit)
+            // Check employee retention (low morale employees might quit)
             val quitEmployees = employeeService.checkEmployeeRetention(gameSessionId)
             
-            // 5. Pay salaries (with perk adjustments if applicable)
+            // Pay salaries (with perk adjustments if applicable)
             val totalSalaries = employeeService.calculateTotalSalaries(gameSessionId)
             val updatedBudget = gameSession.budget - totalSalaries
             
-            // 6. Advance to next week
+            // Advance to next week
             val newWeek = gameSession.currentWeek + 1
             val newQuarter = if (newWeek > 13) gameSession.currentQuarter + 1 else gameSession.currentQuarter
             val adjustedWeek = if (newWeek > 13) 1 else newWeek
@@ -108,11 +91,11 @@ class GameOrchestrationService(
             
             val savedSession = gameSessionRepository.save(updatedGameSession)
             
-            // 7. Check for completed contracts and update rewards (with perk bonuses)
+            // Check for completed contracts and update rewards (with perk bonuses)
             val completedContracts = contractResults.filter { it?.status == ContractStatus.COMPLETED }
             completedContracts.forEach { contract ->
                 contract?.let {
-                    val rewardMultiplier = gameSession.getContractRewardMultiplier()
+                    val rewardMultiplier = 1.0
                     val adjustedReward = (it.getEffectiveReward() * rewardMultiplier).toLong()
                     
                     // Update game session with rewards
@@ -121,7 +104,7 @@ class GameOrchestrationService(
                 }
             }
             
-            // 8. Check for quarter end
+            // Check for quarter end
             val finalSession = if (newWeek > 13) {
                 handleQuarterEnd(savedSession)
             } else {
@@ -149,16 +132,14 @@ class GameOrchestrationService(
                 ?: return EmployeeHiringResult.failure("Game session not found")
             
             // Apply perk-based hiring cost adjustment
-            val baseCost = calculateHiringCost(employeeTemplate)
-            val adjustedCost = (baseCost * gameSession.getHiringCostMultiplier()).toLong()
+            val cost = calculateHiringCost(employeeTemplate)
             
-            if (!gameSession.canAfford(adjustedCost)) {
+            if (!gameSession.canAfford(cost)) {
                 return EmployeeHiringResult.failure("Insufficient funds to hire employee")
             }
             
-            // Apply starting morale bonus from perks
-            val startingMoraleBonus = gameSession.getStartingMoraleBonus()
-            val adjustedMorale = (employeeTemplate.morale + startingMoraleBonus).coerceIn(0, 100)
+
+            val adjustedMorale = (employeeTemplate.morale).coerceIn(0, 100)
             
             val adjustedEmployee = employeeTemplate.copy(
                 gameSession = gameSession,
@@ -170,7 +151,7 @@ class GameOrchestrationService(
                 ?: return EmployeeHiringResult.failure("Failed to hire employee")
             
             // Deduct adjusted hiring cost
-            updateBudget(gameSessionId, -adjustedCost)
+            updateBudget(gameSessionId, - cost)
             
             return EmployeeHiringResult.success(hiredEmployee)
             
@@ -195,14 +176,7 @@ class GameOrchestrationService(
             
             val savedSession = gameSessionRepository.save(endedSession)
             
-            // Update user meta-progression
-            val updatedUser = metaProgressionService.updateUserStats(gameSession.user, savedSession)
-            userRepository.save(updatedUser)
-            
-            // Check for new unlocks
-            val newUnlocks = metaProgressionService.checkForNewUnlocks(updatedUser)
-            
-            return GameEndResult.success(savedSession, newUnlocks)
+            return GameEndResult.success(savedSession)
             
         } catch (e: Exception) {
             return GameEndResult.failure(e.message ?: "Unknown error ending game")
@@ -308,11 +282,11 @@ sealed class GameInitializationResult {
 }
 
 sealed class GameEndResult {
-    data class Success(val gameSession: GameSession, val newUnlocks: List<CompanyPerk>) : GameEndResult()
+    data class Success(val gameSession: GameSession) : GameEndResult()
     data class Failure(val error: String) : GameEndResult()
     
     companion object {
-        fun success(gameSession: GameSession, unlocks: List<CompanyPerk>) = Success(gameSession, unlocks)
+        fun success(gameSession: GameSession) = Success(gameSession)
         fun failure(error: String) = Failure(error)
     }
 }

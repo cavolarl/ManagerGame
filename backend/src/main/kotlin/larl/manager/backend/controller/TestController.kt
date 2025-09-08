@@ -20,9 +20,9 @@ class TestController {
     @GetMapping("/game/info")
     fun gameInfo(): Map<String, Any> {
         return mapOf(
-            "name" to "Manager Game",
+            "name" to "Welcome to Spreadsheet Manager 2025",
             "version" to "0.1.0",
-            "description" to "A cool manager game backend"
+            "description" to "A business manager game backend"
         )
     }
 }

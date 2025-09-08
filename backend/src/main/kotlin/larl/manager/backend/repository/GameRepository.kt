@@ -7,31 +7,17 @@ import org.springframework.stereotype.Repository
 import java.util.*
 
 @Repository
-interface UserRepository : JpaRepository<User, Long> {
-    fun findByUsername(username: String): Optional<User>
-    fun findByEmail(email: String): Optional<User>
-    fun existsByUsername(username: String): Boolean
-    fun existsByEmail(email: String): Boolean
-}
-
-@Repository
 interface GameSessionRepository : JpaRepository<GameSession, Long> {
     
-    // Find active game session for a user (simplified - no Company)
-    fun findByUserIdAndStatus(userId: Long, status: GameStatus): Optional<GameSession>
+    // Find active game session for a session ID (replaces user-based lookup)
+    fun findBySessionIdAndStatus(sessionId: String, status: GameStatus): Optional<GameSession>
     
-    // Get current active game for a user
-    @Query("SELECT gs FROM GameSession gs WHERE gs.user.id = :userId AND gs.status = 'ACTIVE'")
-    fun findActiveGameByUser(userId: Long): Optional<GameSession>
+    // Get current active game for a session
+    @Query("SELECT gs FROM GameSession gs WHERE gs.sessionId = :sessionId AND gs.status = 'ACTIVE'")
+    fun findActiveGameBySession(sessionId: String): Optional<GameSession>
     
-    // Get all completed games for a user (for stats/history)
-    fun findByUserIdAndStatusOrderByStartedAtDesc(userId: Long, status: GameStatus): List<GameSession>
-    
-    // Get all games for a user
-    fun findByUserIdOrderByStartedAtDesc(userId: Long): List<GameSession>
-    
-    @Query("SELECT gs FROM GameSession gs WHERE gs.status = 'COMPLETED' ORDER BY gs.stakeholderValue + (gs.budget / 1000) DESC")
-    fun findTopGamesByTotalScore(): List<GameSession>
+    // Get all games for a session
+    fun findBySessionIdOrderByStartedAtDesc(sessionId: String): List<GameSession>
 }
 
 @Repository

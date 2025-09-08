@@ -4,20 +4,11 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Positive
 import jakarta.validation.constraints.Size
-import larl.manager.backend.entity.CompanyPerk
 
-// Updated: No more Company entity, direct user-to-game relationship
 data class StartGameRequest(
-    @field:NotNull(message = "User ID is required")
-    @field:Positive(message = "User ID must be positive")
-    val userId: Long,
-    
     @field:NotBlank(message = "Company name is required")
     @field:Size(min = 2, max = 100, message = "Company name must be between 2 and 100 characters")
-    val companyName: String,
-    
-    // Optional perks selection for meta-progression
-    val selectedPerks: Set<CompanyPerk> = emptySet()
+    val companyName: String
 )
 
 data class AssignEmployeeRequest(

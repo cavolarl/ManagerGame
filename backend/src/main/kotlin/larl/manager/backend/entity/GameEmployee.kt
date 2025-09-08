@@ -59,8 +59,8 @@ data class GameEmployee(
 ) {
     constructor() : this(
         gameSession = GameSession(
-            user = User(),
-            companyName = "",
+            sessionId = "",
+            companyName = ""
         ),
         name = "",
         employeeType = EmployeeType.ANALYST,
@@ -75,9 +75,8 @@ data class GameEmployee(
     fun getEffectiveSpeed(): Int {
         val baseMorale = morale / 100.0
         val levelBonus = 1.0 + (level - 1) * 0.1 // 10% per level
-        val perkBonus = gameSession.getEmployeeEfficiencyMultiplier()
         
-        return ((speed * baseMorale * levelBonus * perkBonus).toInt()).coerceAtLeast(1)
+        return ((speed * baseMorale * levelBonus).toInt()).coerceAtLeast(1)
     }
     
     fun getEffectiveAccuracy(): Int {
@@ -89,7 +88,6 @@ data class GameEmployee(
     
     fun getQuitChance(): Int {
         val baseMorale = morale
-        val loyaltyBonus = gameSession.getEmployeeLoyaltyBonus()
         
         val baseChance = when {
             baseMorale >= 80 -> 2
@@ -99,16 +97,7 @@ data class GameEmployee(
             else -> 50
         }
         
-        return (baseChance + loyaltyBonus).coerceAtLeast(0)
-    }
-    
-    fun applyWeeklyMoraleBonus(): GameEmployee {
-        val weeklyBonus = gameSession.getWeeklyMoraleBonus()
-        if (weeklyBonus > 0) {
-            val newMorale = (morale + weeklyBonus).coerceIn(0, 100)
-            return this.copy(morale = newMorale)
-        }
-        return this
+        return (baseChance).coerceAtLeast(0)
     }
     
     fun levelUp(): GameEmployee {

@@ -10,7 +10,6 @@ import java.time.LocalDateTime
 @Transactional
 class GameSessionService(
     private val gameSessionRepository: GameSessionRepository,
-    private val userRepository: UserRepository,
     private val contractService: ContractService,
     private val employeeService: EmployeeService
 ) {
@@ -18,30 +17,11 @@ class GameSessionService(
     /**
      * Start a new game session for a user (replaces company-based creation)
      */
-    fun startNewGame(userId: Long, companyName: String, selectedPerks: Set<CompanyPerk> = emptySet()): GameSession? {
-        val user = userRepository.findById(userId).orElse(null) ?: return null
-        
-        // Check if user already has an active game
-        val existingGame = gameSessionRepository.findActiveGameByUser(userId)
-        if (existingGame.isPresent) {
-            throw IllegalArgumentException("User already has an active game session")
-        }
-        
-        // Validate selected perks against user's unlocked perks
-        val validPerks = selectedPerks.filter { user.unlockedPerks.contains(it) }.toMutableSet()
-        
-        // Calculate starting budget with perks
-        val startingBudget = if (validPerks.contains(CompanyPerk.BUDGET_BOOST)) {
-            55000L // +5k bonus
-        } else {
-            50000L
-        }
+    fun startNewGame(companyName: String): GameSession? {
         
         val gameSession = GameSession(
-            user = user,
+            sessionId = java.util.UUID.randomUUID().toString(),
             companyName = companyName,
-            budget = startingBudget,
-            appliedPerks = validPerks
         )
         
         val savedGame = gameSessionRepository.save(gameSession)
@@ -53,35 +33,21 @@ class GameSessionService(
     }
     
     /**
-     * Find active game session by user ID (replaces company-based lookup)
-     */
-    fun findActiveGameByUser(userId: Long): GameSession? {
-        return gameSessionRepository.findActiveGameByUser(userId).orElse(null)
-    }
-    
-    /**
      * Find game session by ID
      */
     fun findById(id: Long): GameSession? {
         return gameSessionRepository.findById(id).orElse(null)
     }
-    
+
     /**
-     * Get all game sessions for a user (replaces company-based history)
+     * Find active game session by session ID
      */
-    fun getUserGameHistory(userId: Long): List<GameSession> {
-        return gameSessionRepository.findByUserIdOrderByStartedAtDesc(userId)
+    fun findActiveGameBySession(sessionId: String): GameSession? {
+        return gameSessionRepository.findActiveGameBySession(sessionId).orElse(null)
     }
     
     /**
-     * Get completed games for a user (for statistics)
-     */
-    fun getCompletedGames(userId: Long): List<GameSession> {
-        return gameSessionRepository.findByUserIdAndStatusOrderByStartedAtDesc(userId, GameStatus.COMPLETED)
-    }
-    
-    /**
-     * Advance to next week with perk-aware salary calculations
+     * Advance to next week with salary calculations
      */
     fun advanceWeek(gameSessionId: Long): GameSession? {
         val gameSession = gameSessionRepository.findById(gameSessionId).orElse(null) ?: return null
@@ -97,11 +63,6 @@ class GameSessionService(
         // Calculate salary costs (employees get perk bonuses automatically)
         val totalSalaries = employeeService.calculateTotalSalaries(gameSessionId)
         val newBudget = gameSession.budget - totalSalaries
-        
-        // Apply weekly morale bonus from perks
-        if (gameSession.appliedPerks.contains(CompanyPerk.MORALE_BONUS)) {
-            employeeService.applyWeeklyMoraleBonus(gameSessionId, 5)
-        }
         
         val updatedSession = gameSession.copy(
             currentWeek = adjustedWeek,
@@ -120,7 +81,7 @@ class GameSessionService(
     }
     
     /**
-     * Update stakeholder value with perk bonuses
+     * Update stakeholder value
      */
     fun updateStakeholderValue(gameSessionId: Long, value: Int): GameSession? {
         val gameSession = gameSessionRepository.findById(gameSessionId).orElse(null) ?: return null
@@ -138,7 +99,7 @@ class GameSessionService(
     }
     
     /**
-     * End game and update user progression
+     * End game
      */
     fun endGame(gameSession: GameSession, status: GameStatus): GameSession {
         val updatedSession = gameSession.copy(
@@ -148,59 +109,40 @@ class GameSessionService(
         
         val savedSession = gameSessionRepository.save(updatedSession)
         
-        // Update user meta-progression stats
-        val user = gameSession.user
-        val updatedUser = user.updateStats(savedSession)
-        userRepository.save(updatedUser)
-        
         return savedSession
     }
     
     /**
-     * Check if user can afford an expense (with perk adjustments)
+     * Check if user can afford an expense
      */
-    fun canAfford(gameSessionId: Long, expense: ExpenseType, baseAmount: Long): Boolean {
+    fun canAfford(gameSessionId: Long, baseAmount: Long): Boolean {
         val gameSession = gameSessionRepository.findById(gameSessionId).orElse(null) ?: return false
+        val cost = baseAmount
         
-        val adjustedAmount = when (expense) {
-            ExpenseType.HIRING -> (baseAmount * gameSession.getHiringCostMultiplier()).toLong()
-            ExpenseType.TRAINING -> (baseAmount * gameSession.getTrainingCostMultiplier()).toLong()
-            ExpenseType.OTHER -> baseAmount
-        }
-        
-        return gameSession.canAfford(adjustedAmount)
+        return gameSession.canAfford(cost)
     }
     
     /**
-     * Spend money with perk adjustments
+     * Spend money
      */
-    fun spendMoney(gameSessionId: Long, expense: ExpenseType, baseAmount: Long): GameSession? {
+    fun spendMoney(gameSessionId: Long, baseAmount: Long): GameSession? {
         val gameSession = gameSessionRepository.findById(gameSessionId).orElse(null) ?: return null
+        val cost = baseAmount
         
-        val adjustedAmount = when (expense) {
-            ExpenseType.HIRING -> (baseAmount * gameSession.getHiringCostMultiplier()).toLong()
-            ExpenseType.TRAINING -> (baseAmount * gameSession.getTrainingCostMultiplier()).toLong()
-            ExpenseType.OTHER -> baseAmount
-        }
-        
-        if (!gameSession.canAfford(adjustedAmount)) {
-            throw IllegalArgumentException("Insufficient funds")
-        }
-        
-        val updatedSession = gameSession.copy(budget = gameSession.budget - adjustedAmount)
+        val updatedSession = gameSession.copy(budget = gameSession.budget - cost)
         return gameSessionRepository.save(updatedSession)
     }
     
     /**
-     * Add money with perk bonuses (for contract rewards)
+     * Add money
      */
     fun earnMoney(gameSessionId: Long, baseAmount: Long): GameSession? {
         val gameSession = gameSessionRepository.findById(gameSessionId).orElse(null) ?: return null
         
         // Apply contract negotiator perk bonus
-        val adjustedAmount = (baseAmount * gameSession.getContractRewardMultiplier()).toLong()
+        val earnings = baseAmount
         
-        val updatedSession = gameSession.copy(budget = gameSession.budget + adjustedAmount)
+        val updatedSession = gameSession.copy(budget = gameSession.budget + earnings)
         return gameSessionRepository.save(updatedSession)
     }
     
@@ -233,15 +175,3 @@ class GameSessionService(
         }
     }
 }
-
-// Helper enums and data classes
-enum class ExpenseType {
-    HIRING, TRAINING, OTHER
-}
-
-data class GameStatistics(
-    val totalGamesPlayed: Long,
-    val activeGames: Long,
-    val averageStakeholderValue: Double,
-    val averageQuartersCompleted: Double
-)

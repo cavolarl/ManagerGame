@@ -1,15 +1,11 @@
 package larl.manager.backend.dto.response
 
 import larl.manager.backend.entity.*
-import larl.manager.backend.service.UserProgressionSummary
-import larl.manager.backend.service.UnlockProgress
 import java.time.LocalDateTime
 
 // Updated: GameSession now contains company info
 data class GameSessionResponse(
     val id: Long,
-    val userId: Long,
-    val username: String,
     val companyName: String, // Now part of GameSession
     val currentQuarter: Int,
     val currentWeek: Int,
@@ -17,7 +13,6 @@ data class GameSessionResponse(
     val stakeholderValue: Int,
     val errorPenalties: Int,
     val status: String,
-    val appliedPerks: List<String>, // New: Show active perks
     val startedAt: LocalDateTime,
     val endedAt: LocalDateTime?,
     val totalScore: Int,
@@ -26,8 +21,6 @@ data class GameSessionResponse(
     companion object {
         fun from(gameSession: GameSession) = GameSessionResponse(
             id = gameSession.id,
-            userId = gameSession.user.id,
-            username = gameSession.user.username,
             companyName = gameSession.companyName,
             currentQuarter = gameSession.currentQuarter,
             currentWeek = gameSession.currentWeek,
@@ -35,7 +28,6 @@ data class GameSessionResponse(
             stakeholderValue = gameSession.stakeholderValue,
             errorPenalties = gameSession.errorPenalties,
             status = gameSession.status.name,
-            appliedPerks = gameSession.appliedPerks.map { it.name },
             startedAt = gameSession.startedAt,
             endedAt = gameSession.endedAt,
             totalScore = gameSession.getTotalScore(),
@@ -75,39 +67,6 @@ data class GameEmployeeResponse(
             effectiveSpeed = employee.getEffectiveSpeed(),
             effectiveAccuracy = employee.getEffectiveAccuracy(),
             quitChance = employee.getQuitChance()
-        )
-    }
-}
-
-// Updated: Enhanced with perk info
-data class UserResponse(
-    val id: Long,
-    val username: String,
-    val email: String,
-    val createdAt: LocalDateTime,
-    val role: String,
-    val isActive: Boolean,
-    val totalRuns: Int, // New: Meta-progression stats
-    val bestScore: Int,
-    val totalQuartersCompleted: Int,
-    val totalCompaniesCreated: Int,
-    val unlockedPerks: List<String>,
-    val unlockedEmployeeTypes: List<String>
-) {
-    companion object {
-        fun from(user: User) = UserResponse(
-            id = user.id,
-            username = user.username,
-            email = user.email,
-            createdAt = user.createdAt,
-            role = user.role.name,
-            isActive = user.isActive,
-            totalRuns = user.totalRuns,
-            bestScore = user.bestScore,
-            totalQuartersCompleted = user.totalQuartersCompleted,
-            totalCompaniesCreated = user.totalCompaniesCreated,
-            unlockedPerks = user.unlockedPerks.map { it.name },
-            unlockedEmployeeTypes = user.unlockedEmployeeTypes.map { it.name }
         )
     }
 }
@@ -179,79 +138,10 @@ data class ContractAssignmentResponse(
     }
 }
 
-// New: Meta-progression DTOs
-data class UserProgressionResponse(
-    val totalRuns: Int,
-    val bestScore: Int,
-    val totalQuartersCompleted: Int,
-    val totalCompaniesCreated: Int,
-    val unlockedPerks: List<PerkResponse>,
-    val unlockedEmployeeTypes: List<String>,
-    val nextUnlockProgress: List<UnlockProgressResponse>
-) {
-    companion object {
-        fun from(summary: UserProgressionSummary) = UserProgressionResponse(
-            totalRuns = summary.totalRuns,
-            bestScore = summary.bestScore,
-            totalQuartersCompleted = summary.totalQuartersCompleted,
-            totalCompaniesCreated = summary.totalCompaniesCreated,
-            unlockedPerks = summary.unlockedPerks.map { PerkResponse.from(it) },
-            unlockedEmployeeTypes = summary.unlockedEmployeeTypes.map { it.name },
-            nextUnlockProgress = summary.nextUnlockProgress.map { UnlockProgressResponse.from(it) }
-        )
-    }
-}
-
-data class PerkResponse(
-    val name: String,
-    val description: String,
-    val isActive: Boolean = false
-) {
-    companion object {
-        fun from(perk: CompanyPerk, isActive: Boolean = false) = PerkResponse(
-            name = perk.name,
-            description = getPerkDescription(perk),
-            isActive = isActive
-        )
-        
-        private fun getPerkDescription(perk: CompanyPerk): String = when (perk) {
-            CompanyPerk.BETTER_ONBOARDING -> "New employees start with +10 morale"
-            CompanyPerk.CHEAPER_TRAINING -> "Training costs 25% less"
-            CompanyPerk.MORALE_BONUS -> "All employees gain +5 morale weekly"
-            CompanyPerk.FASTER_HIRING -> "Hiring costs 20% less"
-            CompanyPerk.BUDGET_BOOST -> "Start each run with +$5,000"
-            CompanyPerk.EMPLOYEE_LOYALTY -> "Employees 10% less likely to quit"
-            CompanyPerk.CONTRACT_NEGOTIATOR -> "Contract rewards 15% higher"
-            CompanyPerk.EFFICIENCY_EXPERT -> "Employees work 10% faster"
-        }
-    }
-}
-
-data class UnlockProgressResponse(
-    val type: String,
-    val name: String,
-    val description: String,
-    val requirement: Int,
-    val currentProgress: Int,
-    val progressPercentage: Int
-) {
-    companion object {
-        fun from(progress: UnlockProgress) = UnlockProgressResponse(
-            type = progress.type,
-            name = progress.name,
-            description = progress.description,
-            requirement = progress.requirement,
-            currentProgress = progress.currentProgress,
-            progressPercentage = progress.progressPercentage
-        )
-    }
-}
-
 // Composite response DTOs for complex operations
 data class GameInitializationResponse(
     val gameSession: GameSessionResponse,
-    val availableEmployees: List<GameEmployeeResponse>,
-    val availablePerks: List<PerkResponse>
+    val availableEmployees: List<GameEmployeeResponse>
 )
 
 data class GameStateResponse(
@@ -271,6 +161,4 @@ data class WeekTurnResponse(
 data class GameEndResponse(
     val gameSession: GameSessionResponse,
     val finalScore: Int,
-    val newUnlocks: List<PerkResponse>,
-    val userProgression: UserProgressionResponse
 )

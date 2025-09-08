@@ -22,7 +22,7 @@ class EmployeeService(
         val baseStats = generateBaseStats(employeeType, level)
         
         // Apply starting morale bonus from perks
-        val startingMorale = 100 + gameSession.getStartingMoraleBonus()
+        val startingMorale = 100
         
         return GameEmployee(
             gameSession = gameSession,
@@ -44,16 +44,13 @@ class EmployeeService(
         val gameSession = gameSessionRepository.findById(gameSessionId).orElse(null) ?: return null
         
         // Calculate hiring cost with perk adjustments
-        val baseCost = calculateHiringCost(employeeTemplate)
-        val adjustedCost = (baseCost * gameSession.getHiringCostMultiplier()).toLong()
+        val Cost = calculateHiringCost(employeeTemplate)
         
-        if (!gameSession.canAfford(adjustedCost)) {
+        if (!gameSession.canAfford(Cost)) {
             throw IllegalArgumentException("Insufficient funds to hire employee")
         }
         
-        // Apply starting morale bonus from perks
-        val startingMoraleBonus = gameSession.getStartingMoraleBonus()
-        val finalMorale = (employeeTemplate.morale + startingMoraleBonus).coerceIn(0, 100)
+        val finalMorale = (employeeTemplate.morale).coerceIn(0, 100)
         
         val employee = employeeTemplate.copy(
             gameSession = gameSession,
@@ -64,7 +61,7 @@ class EmployeeService(
         val savedEmployee = gameEmployeeRepository.save(employee)
         
         // Deduct hiring cost from game session budget
-        val updatedSession = gameSession.copy(budget = gameSession.budget - adjustedCost)
+        val updatedSession = gameSession.copy(budget = gameSession.budget - Cost)
         gameSessionRepository.save(updatedSession)
         
         return savedEmployee
@@ -101,18 +98,6 @@ class EmployeeService(
         val newMorale = (employee.morale + moraleChange).coerceIn(0, 100)
         val updatedEmployee = employee.copy(morale = newMorale)
         return gameEmployeeRepository.save(updatedEmployee)
-    }
-    
-    /**
-     * Apply weekly morale bonus from perks to all employees
-     */
-    fun applyWeeklyMoraleBonus(gameSessionId: Long, bonusAmount: Int): List<GameEmployee> {
-        val employees = getActiveEmployees(gameSessionId)
-        return employees.map { employee ->
-            val newMorale = (employee.morale + bonusAmount).coerceIn(0, 100)
-            val updatedEmployee = employee.copy(morale = newMorale)
-            gameEmployeeRepository.save(updatedEmployee)
-        }
     }
     
     /**
