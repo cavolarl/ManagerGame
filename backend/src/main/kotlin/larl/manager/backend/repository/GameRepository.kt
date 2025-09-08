@@ -35,10 +35,10 @@ interface ContractRepository : JpaRepository<Contract, Long> {
 }
 
 @Repository
-interface GameEmployeeRepository : JpaRepository<GameEmployee, Long> {
+interface EmployeeRepository : JpaRepository<Employee, Long> {
     
     // Get all employees for a game session
-    fun findByGameSessionIdAndIsActive(gameSessionId: Long, isActive: Boolean): List<GameEmployee>
+    fun findByGameSessionIdAndIsActive(gameSessionId: Long, isActive: Boolean): List<Employee>
     
     // Get employees available for assignment (not assigned to contracts)
     @Query("""
@@ -51,14 +51,14 @@ interface GameEmployeeRepository : JpaRepository<GameEmployee, Long> {
             AND ca.isActive = true
         )
     """)
-    fun findUnassignedEmployees(gameSessionId: Long): List<GameEmployee>
+    fun findUnassignedEmployees(gameSessionId: Long): List<Employee>
     
     // Get employees by type for hiring UI
     fun findByGameSessionIdAndEmployeeTypeAndIsActive(
         gameSessionId: Long, 
         employeeType: EmployeeType, 
         isActive: Boolean
-    ): List<GameEmployee>
+    ): List<Employee>
 }
 
 @Repository

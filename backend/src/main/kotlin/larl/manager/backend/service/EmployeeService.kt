@@ -9,14 +9,14 @@ import kotlin.random.Random
 @Service
 @Transactional
 class EmployeeService(
-    private val gameEmployeeRepository: GameEmployeeRepository,
+    private val employeeRepository: EmployeeRepository,
     private val gameSessionRepository: GameSessionRepository
 ) {
     
     /**
      * Generate random employee with available types based on user unlocks
      */
-    fun generateRandomEmployee(gameSession: GameSession): GameEmployee {
+    fun generateRandomEmployee(gameSession: GameSession): Employee {
         val employeeType = EmployeeType.ANALYST
         val level = getRandomLevel()
         val baseStats = generateBaseStats(employeeType, level)
@@ -24,7 +24,7 @@ class EmployeeService(
         // Apply starting morale bonus from perks
         val startingMorale = 100
         
-        return GameEmployee(
+        return Employee(
             gameSession = gameSession,
             name = generateRandomName(),
             employeeType = employeeType,
@@ -40,7 +40,7 @@ class EmployeeService(
     /**
      * Hire employee with perk-adjusted costs and bonuses
      */
-    fun hireEmployee(gameSessionId: Long, employeeTemplate: GameEmployee): GameEmployee? {
+    fun hireEmployee(gameSessionId: Long, employeeTemplate: Employee): Employee? {
         val gameSession = gameSessionRepository.findById(gameSessionId).orElse(null) ?: return null
         
         // Calculate hiring cost with perk adjustments
@@ -58,7 +58,7 @@ class EmployeeService(
             isActive = true
         )
         
-        val savedEmployee = gameEmployeeRepository.save(employee)
+        val savedEmployee = employeeRepository.save(employee)
         
         // Deduct hiring cost from game session budget
         val updatedSession = gameSession.copy(budget = gameSession.budget - Cost)
@@ -70,45 +70,45 @@ class EmployeeService(
     /**
      * Get active employees for a game session
      */
-    fun getActiveEmployees(gameSessionId: Long): List<GameEmployee> {
-        return gameEmployeeRepository.findByGameSessionIdAndIsActive(gameSessionId, true)
+    fun getActiveEmployees(gameSessionId: Long): List<Employee> {
+        return employeeRepository.findByGameSessionIdAndIsActive(gameSessionId, true)
     }
     
     /**
      * Get available employees for assignment (not currently assigned)
      */
-    fun getAvailableEmployees(gameSessionId: Long): List<GameEmployee> {
-        return gameEmployeeRepository.findUnassignedEmployees(gameSessionId)
+    fun getAvailableEmployees(gameSessionId: Long): List<Employee> {
+        return employeeRepository.findUnassignedEmployees(gameSessionId)
     }
     
     /**
      * Fire employee
      */
-    fun fireEmployee(employeeId: Long): GameEmployee? {
-        val employee = gameEmployeeRepository.findById(employeeId).orElse(null) ?: return null
+    fun fireEmployee(employeeId: Long): Employee? {
+        val employee = employeeRepository.findById(employeeId).orElse(null) ?: return null
         val updatedEmployee = employee.copy(isActive = false)
-        return gameEmployeeRepository.save(updatedEmployee)
+        return employeeRepository.save(updatedEmployee)
     }
     
     /**
      * Update employee morale
      */
-    fun updateMorale(employeeId: Long, moraleChange: Int): GameEmployee? {
-        val employee = gameEmployeeRepository.findById(employeeId).orElse(null) ?: return null
+    fun updateMorale(employeeId: Long, moraleChange: Int): Employee? {
+        val employee = employeeRepository.findById(employeeId).orElse(null) ?: return null
         val newMorale = (employee.morale + moraleChange).coerceIn(0, 100)
         val updatedEmployee = employee.copy(morale = newMorale)
-        return gameEmployeeRepository.save(updatedEmployee)
+        return employeeRepository.save(updatedEmployee)
     }
     
     /**
      * Update all employee morale (for events)
      */
-    fun updateAllEmployeeMorale(gameSessionId: Long, moraleChange: Int): List<GameEmployee> {
+    fun updateAllEmployeeMorale(gameSessionId: Long, moraleChange: Int): List<Employee> {
         val employees = getActiveEmployees(gameSessionId)
         return employees.map { employee ->
             val newMorale = (employee.morale + moraleChange).coerceIn(0, 100)
             val updatedEmployee = employee.copy(morale = newMorale)
-            gameEmployeeRepository.save(updatedEmployee)
+            employeeRepository.save(updatedEmployee)
         }
     }
 
@@ -120,15 +120,15 @@ class EmployeeService(
     /**
      * Check employee retention with perk bonuses
      */
-    fun checkEmployeeRetention(gameSessionId: Long): List<GameEmployee> {
+    fun checkEmployeeRetention(gameSessionId: Long): List<Employee> {
         val employees = getActiveEmployees(gameSessionId)
-        val quitEmployees = mutableListOf<GameEmployee>()
+        val quitEmployees = mutableListOf<Employee>()
         
         employees.forEach { employee ->
             val quitChance = employee.getQuitChance() // Already includes perk bonuses
             if (Random.nextInt(1, 101) <= quitChance) {
                 val firedEmployee = employee.copy(isActive = false)
-                gameEmployeeRepository.save(firedEmployee)
+                employeeRepository.save(firedEmployee)
                 quitEmployees.add(firedEmployee)
             }
         }
@@ -139,15 +139,15 @@ class EmployeeService(
     /**
      * Find employee by ID
      */
-    fun findById(employeeId: Long): GameEmployee? {
-        return gameEmployeeRepository.findById(employeeId).orElse(null)
+    fun findById(employeeId: Long): Employee? {
+        return employeeRepository.findById(employeeId).orElse(null)
     }
     
     /**
      * Update employee (for level-ups, etc.)
      */
-    fun updateEmployee(employee: GameEmployee): GameEmployee {
-        return gameEmployeeRepository.save(employee)
+    fun updateEmployee(employee: Employee): Employee {
+        return employeeRepository.save(employee)
     }
     
     // Helper methods
@@ -175,7 +175,7 @@ class EmployeeService(
         )
     }
     
-    private fun calculateHiringCost(employee: GameEmployee): Long {
+    private fun calculateHiringCost(employee: Employee): Long {
         return employee.salary * 2 // 2 weeks salary as hiring cost
     }
     

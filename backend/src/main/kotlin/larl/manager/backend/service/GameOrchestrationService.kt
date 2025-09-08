@@ -124,9 +124,9 @@ class GameOrchestrationService(
     }
     
     /**
-     * Handle employee hiring with perk-based cost adjustments
+     * Handle employee hiring
      */
-    fun hireEmployee(gameSessionId: Long, employeeTemplate: GameEmployee): EmployeeHiringResult {
+    fun hireEmployee(gameSessionId: Long, employeeTemplate: Employee): EmployeeHiringResult {
         try {
             val gameSession = gameSessionRepository.findById(gameSessionId).orElse(null)
                 ?: return EmployeeHiringResult.failure("Game session not found")
@@ -162,7 +162,7 @@ class GameOrchestrationService(
     
 
     /**
-     * End game and update user meta-progression
+     * End game
      */
     fun endGame(gameSessionId: Long, status: GameStatus): GameEndResult {
         try {
@@ -208,7 +208,7 @@ class GameOrchestrationService(
     }
     
     // Helper methods
-    private fun generateInitialEmployeePool(gameSession: GameSession): List<GameEmployee> {
+    private fun generateInitialEmployeePool(gameSession: GameSession): List<Employee> {
         return (1..5).map { 
             employeeService.generateRandomEmployee(gameSession)
         }
@@ -246,11 +246,11 @@ class GameOrchestrationService(
         return gameSessionRepository.save(updatedSession)
     }
     
-    private fun calculateHiringCost(employee: GameEmployee): Long {
+    private fun calculateHiringCost(employee: Employee): Long {
         return employee.salary * 2 // 2 weeks salary as hiring cost
     }
     
-    private fun calculateTrainingCost(employee: GameEmployee): Long {
+    private fun calculateTrainingCost(employee: Employee): Long {
         return 2000L * employee.level // Scales with level
     }
     
@@ -269,13 +269,13 @@ class GameOrchestrationService(
 sealed class GameInitializationResult {
     data class Success(
         val gameSession: GameSession,
-        val availableEmployees: List<GameEmployee>
+        val availableEmployees: List<Employee>
     ) : GameInitializationResult()
     
     data class Failure(val error: String) : GameInitializationResult()
     
     companion object {
-        fun success(gameSession: GameSession, employees: List<GameEmployee>) = 
+        fun success(gameSession: GameSession, employees: List<Employee>) = 
             Success(gameSession, employees)
         fun failure(error: String) = Failure(error)
     }
@@ -296,7 +296,7 @@ sealed class WeekTurnResult {
     data class Success(
         val gameSession: GameSession,
         val contractResults: List<Contract>,
-        val quitEmployees: List<GameEmployee>,
+        val quitEmployees: List<Employee>,
         val completedContracts: List<Contract>
     ) : WeekTurnResult()
     
@@ -306,7 +306,7 @@ sealed class WeekTurnResult {
         fun success(
             gameSession: GameSession,
             contractResults: List<Contract>,
-            quitEmployees: List<GameEmployee>,
+            quitEmployees: List<Employee>,
             completedContracts: List<Contract>
         ) = Success(gameSession, contractResults, quitEmployees, completedContracts)
         
@@ -315,11 +315,11 @@ sealed class WeekTurnResult {
 }
 
 sealed class EmployeeHiringResult {
-    data class Success(val employee: GameEmployee) : EmployeeHiringResult()
+    data class Success(val employee: Employee) : EmployeeHiringResult()
     data class Failure(val error: String) : EmployeeHiringResult()
     
     companion object {
-        fun success(employee: GameEmployee) = Success(employee)
+        fun success(employee: Employee) = Success(employee)
         fun failure(error: String) = Failure(error)
     }
 }
@@ -327,7 +327,7 @@ sealed class EmployeeHiringResult {
 sealed class GameStateResult {
     data class Success(
         val gameSession: GameSession,
-        val activeEmployees: List<GameEmployee>,
+        val activeEmployees: List<Employee>,
         val availableContracts: List<Contract>,
         val activeContracts: List<Contract>
     ) : GameStateResult()
@@ -337,7 +337,7 @@ sealed class GameStateResult {
     companion object {
         fun success(
             gameSession: GameSession,
-            activeEmployees: List<GameEmployee>,
+            activeEmployees: List<Employee>,
             availableContracts: List<Contract>,
             activeContracts: List<Contract>,
         ) = Success(gameSession, activeEmployees, availableContracts, activeContracts)

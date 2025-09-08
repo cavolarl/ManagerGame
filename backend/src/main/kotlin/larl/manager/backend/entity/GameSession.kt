@@ -55,7 +55,7 @@ data class GameSession(
     val contracts: MutableSet<Contract> = mutableSetOf(),
     
     @OneToMany(mappedBy = "gameSession", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
-    val employees: MutableSet<GameEmployee> = mutableSetOf()
+    val employees: MutableSet<Employee> = mutableSetOf()
 ) {
     fun canAfford(amount: Long): Boolean = budget >= amount
     fun isQuarterEnd(): Boolean = currentWeek >= 13

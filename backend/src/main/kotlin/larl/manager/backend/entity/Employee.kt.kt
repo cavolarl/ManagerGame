@@ -9,7 +9,7 @@ import java.time.LocalDateTime
 
 @Entity
 @Table(name = "game_employees")
-data class GameEmployee(
+data class Employee(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
@@ -100,7 +100,7 @@ data class GameEmployee(
         return (baseChance).coerceAtLeast(0)
     }
     
-    fun levelUp(): GameEmployee {
+    fun levelUp(): Employee {
         return this.copy(
             level = level + 1,
             speed = speed + kotlin.random.Random.nextInt(3, 8),

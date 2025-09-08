@@ -20,7 +20,7 @@ data class ContractAssignment(
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", nullable = false)
-    val employee: GameEmployee,
+    val employee: Employee,
     
     @Column(nullable = false)
     val weekAssigned: Int,

@@ -12,7 +12,7 @@ import kotlin.contracts.contract
 class ContractService(
     private val contractRepository: ContractRepository,
     private val contractAssignmentRepository: ContractAssignmentRepository,
-    private val gameEmployeeRepository: GameEmployeeRepository
+    private val employeeRepository: EmployeeRepository
 ) {
     
     fun generateInitialContracts(gameSession: GameSession): List<Contract> {
@@ -85,7 +85,7 @@ class ContractService(
     
     fun assignEmployeeToContract(contractId: Long, employeeId: Long, week: Int): ContractAssignment? {
         val contract = contractRepository.findById(contractId).orElse(null) ?: return null
-        val employee = gameEmployeeRepository.findById(employeeId).orElse(null) ?: return null
+        val employee = employeeRepository.findById(employeeId).orElse(null) ?: return null
         
         if (contract.status != ContractStatus.IN_PROGRESS) {
             throw IllegalArgumentException("Contract must be in progress to assign employees")

@@ -16,12 +16,8 @@ import jakarta.validation.Valid
 @CrossOrigin(origins = ["http://localhost:5173", "http://localhost:8080"])
 class GameController(
     private val gameOrchestrationService: GameOrchestrationService,
-    private val gameSessionService: GameSessionService,
-    private val contractService: ContractService,
-    private val employeeService: EmployeeService
+    private val gameSessionService: GameSessionService
 ) {
-    
-    // ========== GAME SESSION MANAGEMENT ==========
     
     @PostMapping("/start")
     fun startNewGame(
@@ -41,7 +37,7 @@ class GameController(
                 is GameInitializationResult.Success -> {
                     val response = GameInitializationResponse(
                         gameSession = GameSessionResponse.from(result.gameSession),
-                        availableEmployees = result.availableEmployees.map { GameEmployeeResponse.from(it) }
+                        availableEmployees = result.availableEmployees.map { EmployeeResponse.from(it) }
                     )
                     ResponseEntity.ok(ApiResponse.success(response, "Game started successfully"))
                 }
@@ -52,27 +48,6 @@ class GameController(
         } catch (e: Exception) {
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to start game"))
         }
-    }
-
-    // Add these helper methods to your controller
-    private fun getOrCreateSessionId(request: HttpServletRequest, response: HttpServletResponse): String {
-        val existingSessionId = getSessionIdFromCookie(request)
-        if (existingSessionId != null) {
-            return existingSessionId
-        }
-        
-        val newSessionId = java.util.UUID.randomUUID().toString()
-        val cookie = Cookie("GAME_SESSION_ID", newSessionId)
-        cookie.maxAge = 60 * 60 * 24 * 30 // 30 days
-        cookie.path = "/"
-        cookie.isHttpOnly = true
-        response.addCookie(cookie)
-        
-        return newSessionId
-    }
-
-    private fun getSessionIdFromCookie(request: HttpServletRequest): String? {
-        return request.cookies?.find { it.name == "GAME_SESSION_ID" }?.value
     }
 
     @GetMapping("/current")
@@ -94,23 +69,8 @@ class GameController(
         }
     }
 
-    @GetMapping("/employees")
-    fun getActiveEmployees(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<List<GameEmployeeResponse>>> {
-        val sessionId = getSessionIdFromCookie(httpRequest) 
-            ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active session"))
-        
-        val gameSession = gameSessionService.findActiveGameBySession(sessionId)
-            ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active game"))
-        
-        val employees = employeeService.getActiveEmployees(gameSession.id)
-        return ResponseEntity.ok(ApiResponse.success(employees.map { GameEmployeeResponse.from(it) }))
-    }
-
-    @PostMapping("/employees/hire")
-    fun hireEmployee(
-        @Valid @RequestBody request: HireEmployeeRequest,
-        httpRequest: HttpServletRequest
-    ): ResponseEntity<ApiResponse<GameEmployeeResponse>> {
+    @GetMapping("/nextturn")
+    fun nextTurn(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<WeekTurnResponse>> {
         return try {
             val sessionId = getSessionIdFromCookie(httpRequest)
                 ?: return ResponseEntity.badRequest().body(ApiResponse.error("No session found"))
@@ -118,61 +78,45 @@ class GameController(
             val gameSession = gameSessionService.findActiveGameBySession(sessionId)
                 ?: return ResponseEntity.badRequest().body(ApiResponse.error("No active game"))
             
-            val result = gameOrchestrationService.hireEmployee(gameSession.id, createEmployeeFromRequest(request))
-            when (result) {
-                is EmployeeHiringResult.Success -> {
-                    ResponseEntity.ok(ApiResponse.success(GameEmployeeResponse.from(result.employee), "Employee hired"))
+            val weekTurnResult = gameOrchestrationService.processWeekTurn(gameSession.id)
+            when (weekTurnResult) {
+                is WeekTurnResult.Success -> {
+                    val response = WeekTurnResponse(
+                        gameSession = GameSessionResponse.from(weekTurnResult.gameSession),
+                        contractResults = weekTurnResult.contractResults.map { ContractResponse.from(it) },
+                        quitEmployees = weekTurnResult.quitEmployees.map { EmployeeResponse.from(it) },
+                        completedContracts = weekTurnResult.completedContracts.map { ContractResponse.from(it) }
+                    )
+                    ResponseEntity.ok(ApiResponse.success(response, "Week turn processed successfully"))
                 }
-                is EmployeeHiringResult.Failure -> {
-                    ResponseEntity.badRequest().body(ApiResponse.error(result.error))
+                is WeekTurnResult.Failure -> {
+                    ResponseEntity.badRequest().body(ApiResponse.error(weekTurnResult.error))
                 }
             }
         } catch (e: Exception) {
-            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to hire employee"))
-        }
-    }
-    private fun createEmployeeFromRequest(request: HireEmployeeRequest): GameEmployee {
-        return GameEmployee().copy(
-            name = request.name,
-            employeeType = EmployeeType.valueOf(request.employeeType.uppercase()),
-            level = request.level,
-            speed = request.speed,
-            accuracy = request.accuracy,
-            salary = request.salary,
-            morale = request.morale,
-            isActive = false
-        )
-    }
-
-    @GetMapping("/contracts")
-    fun getContracts(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<List<ContractResponse>>> {
-        return try {
-            val sessionId = getSessionIdFromCookie(httpRequest)
-                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active session"))
-            
-            val gameSession = gameSessionService.findActiveGameBySession(sessionId)
-                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active game"))
-            
-            val contracts = contractService.getContractsByGameSession(gameSession.id)
-            ResponseEntity.ok(ApiResponse.success(contracts.map { ContractResponse.from(it) }))
-        } catch (e: Exception) {
-            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to get contracts"))
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to process week turn"))
         }
     }
 
-    @GetMapping("/contracts/available")
-    fun getAvailableContracts(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<List<ContractResponse>>> {
-        return try {
-            val sessionId = getSessionIdFromCookie(httpRequest)
-                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active session"))
-            
-            val gameSession = gameSessionService.findActiveGameBySession(sessionId)
-                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active game"))
-            
-            val contracts = contractService.findAvailableContracts(gameSession.id)
-            ResponseEntity.ok(ApiResponse.success(contracts.map { ContractResponse.from(it) }))
-        } catch (e: Exception) {
-            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to get available contracts"))
+
+    // Helper methods for session management
+    private fun getOrCreateSessionId(request: HttpServletRequest, response: HttpServletResponse): String {
+        val existingSessionId = getSessionIdFromCookie(request)
+        if (existingSessionId != null) {
+            return existingSessionId
         }
+        
+        val newSessionId = java.util.UUID.randomUUID().toString()
+        val cookie = Cookie("GAME_SESSION_ID", newSessionId)
+        cookie.maxAge = 60 * 60 * 24 * 30 // 30 days
+        cookie.path = "/"
+        cookie.isHttpOnly = true
+        response.addCookie(cookie)
+        
+        return newSessionId
+    }
+
+    private fun getSessionIdFromCookie(request: HttpServletRequest): String? {
+        return request.cookies?.find { it.name == "GAME_SESSION_ID" }?.value
     }
 }
