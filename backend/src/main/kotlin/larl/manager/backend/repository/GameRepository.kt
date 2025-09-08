@@ -42,7 +42,7 @@ interface EmployeeRepository : JpaRepository<Employee, Long> {
     
     // Get employees available for assignment (not assigned to contracts)
     @Query("""
-        SELECT ge FROM GameEmployee ge 
+        SELECT ge FROM Employee ge 
         WHERE ge.gameSession.id = :gameSessionId 
         AND ge.isActive = true 
         AND ge.id NOT IN (
