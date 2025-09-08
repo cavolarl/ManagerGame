@@ -32,3 +32,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+
+### backend testing things ###
+cookies.txt
+test.json
+hire.json

@@ -93,4 +93,55 @@ class GameController(
             ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to get current game"))
         }
     }
+
+    @GetMapping("/employees")
+    fun getActiveEmployees(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<List<GameEmployeeResponse>>> {
+        val sessionId = getSessionIdFromCookie(httpRequest) 
+            ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active session"))
+        
+        val gameSession = gameSessionService.findActiveGameBySession(sessionId)
+            ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active game"))
+        
+        val employees = employeeService.getActiveEmployees(gameSession.id)
+        return ResponseEntity.ok(ApiResponse.success(employees.map { GameEmployeeResponse.from(it) }))
+    }
+
+    @PostMapping("/employees/hire")
+    fun hireEmployee(
+        @Valid @RequestBody request: HireEmployeeRequest,
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<ApiResponse<GameEmployeeResponse>> {
+        return try {
+            val sessionId = getSessionIdFromCookie(httpRequest)
+                ?: return ResponseEntity.badRequest().body(ApiResponse.error("No session found"))
+            
+            val gameSession = gameSessionService.findActiveGameBySession(sessionId)
+                ?: return ResponseEntity.badRequest().body(ApiResponse.error("No active game"))
+            
+            val result = gameOrchestrationService.hireEmployee(gameSession.id, createEmployeeFromRequest(request))
+            when (result) {
+                is EmployeeHiringResult.Success -> {
+                    ResponseEntity.ok(ApiResponse.success(GameEmployeeResponse.from(result.employee), "Employee hired"))
+                }
+                is EmployeeHiringResult.Failure -> {
+                    ResponseEntity.badRequest().body(ApiResponse.error(result.error))
+                }
+            }
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to hire employee"))
+        }
+    }
+    private fun createEmployeeFromRequest(request: HireEmployeeRequest): GameEmployee {
+        return GameEmployee().copy(
+            name = request.name,
+            employeeType = EmployeeType.valueOf(request.employeeType.uppercase()),
+            level = request.level,
+            speed = request.speed,
+            accuracy = request.accuracy,
+            salary = request.salary,
+            morale = request.morale,
+            isActive = false
+        )
+    }
+
 }

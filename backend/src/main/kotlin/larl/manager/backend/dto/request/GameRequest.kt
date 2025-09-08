@@ -22,9 +22,6 @@ data class AssignEmployeeRequest(
 )
 
 data class HireEmployeeRequest(
-    @field:NotNull(message = "Game session ID is required")
-    @field:Positive(message = "Game session ID must be positive")
-    val gameSessionId: Long,
     
     @field:NotBlank(message = "Employee name is required")
     @field:Size(min = 2, max = 50, message = "Employee name must be between 2 and 50 characters")
