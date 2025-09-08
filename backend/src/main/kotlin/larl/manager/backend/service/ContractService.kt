@@ -67,6 +67,10 @@ class ContractService(
     fun findActiveContracts(gameSessionId: Long): List<Contract> {
         return contractRepository.findActiveContractsByGameSession(gameSessionId)
     }
+
+    fun findById(contractId: Long): Contract? {
+        return contractRepository.findById(contractId).orElse(null)
+    }
     
     fun startContract(contractId: Long): Contract? {
         val contract = contractRepository.findById(contractId).orElse(null) ?: return null

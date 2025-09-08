@@ -144,4 +144,35 @@ class GameController(
         )
     }
 
+    @GetMapping("/contracts")
+    fun getContracts(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<List<ContractResponse>>> {
+        return try {
+            val sessionId = getSessionIdFromCookie(httpRequest)
+                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active session"))
+            
+            val gameSession = gameSessionService.findActiveGameBySession(sessionId)
+                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active game"))
+            
+            val contracts = contractService.getContractsByGameSession(gameSession.id)
+            ResponseEntity.ok(ApiResponse.success(contracts.map { ContractResponse.from(it) }))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to get contracts"))
+        }
+    }
+
+    @GetMapping("/contracts/available")
+    fun getAvailableContracts(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<List<ContractResponse>>> {
+        return try {
+            val sessionId = getSessionIdFromCookie(httpRequest)
+                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active session"))
+            
+            val gameSession = gameSessionService.findActiveGameBySession(sessionId)
+                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active game"))
+            
+            val contracts = contractService.findAvailableContracts(gameSession.id)
+            ResponseEntity.ok(ApiResponse.success(contracts.map { ContractResponse.from(it) }))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to get available contracts"))
+        }
+    }
 }
