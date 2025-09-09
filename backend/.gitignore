@@ -38,4 +38,4 @@ build/
 cookies.txt
 test.json
 hire.json
-data/
+data/gamedb.mv.db
