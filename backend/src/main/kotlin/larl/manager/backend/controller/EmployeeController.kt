@@ -56,6 +56,18 @@ class EmployeeController(
         }
     }
 
+    @GetMapping("/available")
+    fun getAvailableEmployees(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<List<EmployeeResponse>>> {
+        val sessionId = getSessionIdFromCookie(httpRequest) 
+            ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active session"))
+        
+        val gameSession = gameSessionService.findActiveGameBySession(sessionId)
+            ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active game"))
+        
+        val availableEmployees = employeeService.getAvailableEmployees(gameSession.id)
+        return ResponseEntity.ok(ApiResponse.success(availableEmployees.map { EmployeeResponse.from(it) }))
+    }
+
     private fun createEmployeeFromRequest(request: HireEmployeeRequest): Employee {
         return Employee().copy(
             name = request.name,
@@ -72,4 +84,6 @@ class EmployeeController(
     private fun getSessionIdFromCookie(request: HttpServletRequest): String? {
         return request.cookies?.find { it.name == "GAME_SESSION_ID" }?.value
     }
+
+
 }

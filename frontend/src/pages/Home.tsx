@@ -16,25 +16,44 @@ const Home = () => {
       {/* Hero Section */}
       <div className="text-center py-16">
         <h1 className="text-5xl font-bold text-gray-900 mb-6">
-          Welcome to Manager Game
+          {gameInfo?.name || 'Spreadsheet Manager 2025'}
         </h1>
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-          Build your empire, manage your team, and become the ultimate business manager. 
-          Start your journey to success today!
+          {gameInfo?.description || 'Build your business empire, manage your team, hire employees, and complete contracts to become the ultimate spreadsheet manager!'}
         </p>
         <div className="space-x-4">
           <Link 
-            to="/register"
+            to="/game"
             className="inline-block px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
           >
             Start Playing
           </Link>
-          <Link 
-            to="/login"
-            className="inline-block px-8 py-3 border border-blue-600 text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors"
-          >
-            Login
-          </Link>
+        </div>
+      </div>
+
+      {/* Game Flow Explanation */}
+      <div className="bg-white rounded-lg shadow-md p-8 mb-8">
+        <h2 className="text-2xl font-bold text-center mb-6">How to Play</h2>
+        <div className="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-8">
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold mr-3">1</div>
+            <span className="font-medium">Start/Load Game</span>
+          </div>
+          <div className="text-gray-400">→</div>
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center font-bold mr-3">2</div>
+            <span className="font-medium">Hire Employees</span>
+          </div>
+          <div className="text-gray-400">→</div>
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold mr-3">3</div>
+            <span className="font-medium">Accept Contracts</span>
+          </div>
+          <div className="text-gray-400">→</div>
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-yellow-600 text-white rounded-full flex items-center justify-center font-bold mr-3">4</div>
+            <span className="font-medium">End Week</span>
+          </div>
         </div>
       </div>
 
@@ -44,61 +63,43 @@ const Home = () => {
           <div className="text-4xl mb-4">👥</div>
           <h3 className="text-xl font-semibold mb-2">Manage Your Team</h3>
           <p className="text-gray-600">
-            Hire talented employees with unique skills and build the perfect team for your company.
+            Hire talented employees with unique skills, speed, and accuracy. Keep morale high to prevent them from quitting!
           </p>
         </div>
         <div className="text-center p-6 bg-white rounded-lg shadow-md">
-          <div className="text-4xl mb-4">💰</div>
-          <h3 className="text-xl font-semibold mb-2">Grow Your Business</h3>
+          <div className="text-4xl mb-4">📋</div>
+          <h3 className="text-xl font-semibold mb-2">Complete Contracts</h3>
           <p className="text-gray-600">
-            Make strategic decisions to increase your revenue and expand your business empire.
+            Accept contracts of varying difficulty and deadlines. Complete them on time to earn money and stakeholder points.
           </p>
         </div>
         <div className="text-center p-6 bg-white rounded-lg shadow-md">
           <div className="text-4xl mb-4">📊</div>
-          <h3 className="text-xl font-semibold mb-2">Track Progress</h3>
+          <h3 className="text-xl font-semibold mb-2">Quarterly Reviews</h3>
           <p className="text-gray-600">
-            Monitor your company's performance with detailed reports and analytics.
+            Survive quarterly performance reviews by maintaining high stakeholder value and managing your budget effectively.
           </p>
         </div>
       </div>
 
-      {/* Game Info Section */}
-      {gameInfo && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Game Information</h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-gray-600"><strong>Name:</strong> {gameInfo.name}</p>
-              <p className="text-gray-600"><strong>Version:</strong> {gameInfo.version}</p>
-            </div>
-            <div>
-              <p className="text-gray-600"><strong>Description:</strong> {gameInfo.description}</p>
-            </div>
-          </div>
+      {/* Game Status */}
+      <div className="text-center py-8">
+        <div className="inline-flex items-center px-4 py-2 rounded-lg bg-gray-100">
+          <div className={`w-3 h-3 rounded-full mr-2 ${healthStatus?.status === 'UP' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <span className="text-sm font-medium">
+            Game Server: {healthStatus?.status === 'UP' ? 'Online' : 'Offline'}
+          </span>
         </div>
-      )}
-
-      {/* Backend Status */}
-      {healthStatus && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-green-800">
-                Backend Status: {healthStatus.status}
-              </p>
-              <p className="text-sm text-green-700">{healthStatus.message}</p>
-            </div>
+        {gameInfo && (
+          <div className="mt-2 text-xs text-gray-500">
+            Version {gameInfo.version}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">⚠️ {error}</p>
+        <div className="mt-4 text-center text-red-600 text-sm">
+          {error}
         </div>
       )}
     </div>

@@ -98,6 +98,32 @@ class GameController(
         }
     }
 
+    @GetMapping("/end")
+    fun endGame(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<String>> {
+        return try {
+            val sessionId = getSessionIdFromCookie(httpRequest)
+                ?: return ResponseEntity.badRequest().body(ApiResponse.error("No session found"))
+            
+            val gameSession = gameSessionService.findActiveGameBySession(sessionId)
+                ?: return ResponseEntity.badRequest().body(ApiResponse.error("No active game"))
+            
+            val endResult = gameOrchestrationService.endGame(gameSession.id, GameStatus.COMPLETED)
+            when (endResult) {
+                is GameEndResult.Success -> {
+                    ResponseEntity.ok(ApiResponse.success(
+                        "Game ended successfully. Final score: ${endResult.gameSession.getTotalScore()}",
+                        "Game session ${gameSession.id} ended for debugging"
+                    ))
+                }
+                is GameEndResult.Failure -> {
+                    ResponseEntity.badRequest().body(ApiResponse.error(endResult.error))
+                }
+            }
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to end game"))
+        }
+    }
+
 
     // Helper methods for session management
     private fun getOrCreateSessionId(request: HttpServletRequest, response: HttpServletResponse): String {

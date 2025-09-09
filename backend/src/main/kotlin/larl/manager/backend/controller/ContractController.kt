@@ -48,6 +48,47 @@ class ContractController(
         }
     }
 
+    @GetMapping("/active")
+    fun getActiveContracts(httpRequest: HttpServletRequest): ResponseEntity<ApiResponse<List<ContractResponse>>> {
+        return try {
+            val sessionId = getSessionIdFromCookie(httpRequest)
+                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active session"))
+            
+            val gameSession = gameSessionService.findActiveGameBySession(sessionId)
+                ?: return ResponseEntity.ok(ApiResponse.success(emptyList(), "No active game"))
+            
+            val contracts = contractService.findActiveContracts(gameSession.id)
+            ResponseEntity.ok(ApiResponse.success(contracts.map { ContractResponse.from(it) }))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to get active contracts"))
+        }
+    }
+
+    @PostMapping("/{contractId}/assign/{employeeId}")
+    fun assignEmployeeToContract(
+        @PathVariable contractId: Long,
+        @PathVariable employeeId: Long,
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<ApiResponse<String>> {
+        return try {
+            val sessionId = getSessionIdFromCookie(httpRequest)
+                ?: return ResponseEntity.badRequest().body(ApiResponse.error("No session found"))
+            
+            val gameSession = gameSessionService.findActiveGameBySession(sessionId)
+                ?: return ResponseEntity.badRequest().body(ApiResponse.error("No active game"))
+            
+            // Assign employee to contract
+            val result = contractService.assignEmployeeToContract(contractId, employeeId, gameSession.currentWeek)
+            if (result != null) {
+                ResponseEntity.ok(ApiResponse.success("Employee assigned to contract successfully"))
+            } else {
+                ResponseEntity.badRequest().body(ApiResponse.error("Failed to assign employee"))
+            }
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(ApiResponse.error(e.message ?: "Failed to assign employee"))
+        }
+    }
+
     private fun getSessionIdFromCookie(request: HttpServletRequest): String? {
         return request.cookies?.find { it.name == "GAME_SESSION_ID" }?.value
     }
